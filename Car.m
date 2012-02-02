@@ -2,8 +2,7 @@
 % Car class represents a vehicle rolling on an arbitrary surface.  Initial 
 % conditions and inputs allow various simulations, and get functions allow 
 % the monitoring and analysis of the system's response. 
-
-%Version 2
+% Version 2
 % -Added in a braking force input to simulation, negative is propulsive
 % -Deprecated coasting sim, just use plain sim with no input
 % -Added in terrain map ability, road grade integrated into that,
@@ -13,30 +12,20 @@
 
 classdef Car < handle
     
-%% Class Properties    
+%% Class Properties 
+% System Properties: the parameters which define the car itself.
+% Parameters for the simulation of the system
     properties 
-        %System Properties: the parameters which define the car itself.
-        %Mass: kg
         mass
-        %Gravity is assumed to be 9.81 m/s
         g=9.81;
-        %Drag Coefficient
         Cd
-        %Width of the wheels of the car
         width
-        %Wheel to wheel length of car
         length 
-        %Effective Radius of drive wheel
         r_eff
-        %Coefficient of rolling resistance
         C_rr
-        %Height in meters of the car's center of gravity
         cg_height
-        %Frontal Area
         fa
         
-        
-        %Parameters for the simulation of the system
         x
         xdot
         xdotnaught
@@ -57,7 +46,8 @@ classdef Car < handle
     %% Methods
     methods
         %% Constructor
-        %Sets parameters of the car itself
+%         Sets parameters of the car itself
+%         simulation parameters set to 0 just in case
         function obj=Car(m,wbw, wbl,rf,crr,cgh, Af,d)
             obj.mass=m;
             obj.del=d;
@@ -69,7 +59,7 @@ classdef Car < handle
             obj.fa=Af;
             obj.Cd=0;
             
-            %simulation parameters set to 0 just in case
+            
             obj.x=0;
             obj.xdot=0;
             obj.xdotnaught=0;
@@ -86,7 +76,7 @@ classdef Car < handle
             obj.E=0;
         end
         %% Setup
-        %sets the initial conditions of the simulation
+%         sets the initial conditions of the simulation
         function obj=SetupSim(obj,xdot0,ydot0, yawrate )
             obj.x=0;
             obj.xdot=xdot0;
@@ -104,12 +94,12 @@ classdef Car < handle
             obj.E=0;
         end
         %% Step Forward Terrain-Braking Simulation
-        %Functionally the same as the coasting simulation, but with a
-        %parameter for force applied by braking.  Because of the simplicity
-        %of the model at this point, a negative braking force input would
-        %simulate propulsion.  Does support rolling resistance, does not
-        %support yaw double dot.
-        %negative road grade is downhill.
+%         Functionally the same as the coasting simulation, but with a
+%         parameter for force applied by braking.  Because of the simplicity
+%         of the model at this point, a negative braking force input would
+%         simulate propulsion.  Does support rolling resistance, does not
+%         support yaw double dot.
+%         negative road grade is downhill.
         function out=stepSim(obj,time_step,order,F_brake)
                 [vn1, ve1]=obj.getGlobalVelocity;
                 gradient=obj.getLocalGradient;
@@ -134,15 +124,16 @@ classdef Car < handle
                 obj.N(end+1)=obj.N(end)+(time_step*.5*(vn1+vn2));
                 obj.E(end+1)=obj.E(end)+(time_step*.5*(ve1+ve2));
                 if size(obj.terrain,1)==1 && size(obj.terrain,2)==1
-                    obj.D(end+1)=obj.D(end)+(sin(obj.terrain)*(obj.x(end)-obj.x(end-1)));
+                    obj.D(end+1)=obj.D(end)-(sin(obj.terrain)*(obj.x(end)-obj.x(end-1)));
                 else
-                    obj.D(end+1)=obj.terrain(ceil(obj.N(end)+(size(obj.terrain,1)/2)+.5), ceil(obj.E(end)+(size(obj.terrain,2)/2)+.5));
+                    %obj.D(end+1)=obj.terrain(ceil(obj.N(end)+(size(obj.terrain,1)/2)+.5), ceil(obj.E(end)+(size(obj.terrain,2)/2)+.5));
+                    obj.D(end+1)=obj.D(end)-(sin(gradient)*(obj.x(end)-obj.x(end-1)));
                 end
                 out=1;
         end
         %% Calculate Tire Velocities
-        %returns car velocity in car tire frames, assuming low speed
-        %turning criteria
+%         returns car velocity in car tire frames, assuming low speed
+%         turning criteria
         function [rlx,rrx,flx,frx,rly,rry,fly,fry]=calcTireVelocities(obj) 
             cvx=obj.xdot(end);
             cvy=obj.ydot(end);
@@ -159,17 +150,17 @@ classdef Car < handle
             fry=cvx*sin(obj.del)+cvy*cos(obj.del)+obj.yawdot*r*cos((pi/2)-atan(obj.length/obj.width)-obj.del);
         end
         %% Get Global Velocity
-        %returns the velocity of COM in global coordinates.  Assumes
-        %car starts at [0,0,0] does not yet support down dimension.  Does
-        %not yet support Down dimension
+%         returns the velocity of COM in global coordinates.  Assumes
+%         car starts at [0,0,0] does not yet support down dimension.  Does
+%         not yet support Down dimension
         function [vn, ve]=getGlobalVelocity(obj)
             vn=obj.xdot(end)*cos(obj.yaw(end))+obj.ydot(end)*cos(pi/4-obj.yaw(end));
             ve=obj.xdot(end)*sin(obj.yaw(end))+obj.ydot(end)*sin(pi/4-obj.yaw(end));
         end
         %% Simulate Coasting Models
-        %simulates and returns the output from a coasting model for a
-        %quarter of a Km.  Uses designated aerodynamic drag model
-        %order.
+%         simulates and returns the output from a coasting model for a
+%         quarter of a Km.  Uses designated aerodynamic drag model
+%         order.
         function out=simulateCoastingModels(obj, time_step,order)
             timevec=0;
             obj.resetValues;
@@ -180,7 +171,7 @@ classdef Car < handle
             out=horzcat(timevec',obj.x', obj.xdot');
         end
         %% Set C_d
-        %Helper function to set the drag coefficient.
+%         Helper function to set the drag coefficient.
         function out=setCD(obj,varargin)
             if isempty(varargin)
                 obj.Cd=0;
@@ -190,7 +181,7 @@ classdef Car < handle
             out=obj.Cd;
         end
         %% Reset Values
-        %resets the simulation vectors to initial state
+%         resets the simulation vectors to initial state
         function out=resetValues(obj) 
             obj.x=0;
             obj.xdot=obj.xdotnaught;
@@ -206,7 +197,7 @@ classdef Car < handle
             out=1;
         end
         %% Get State
-        %returns relevant current state parameters
+%         returns relevant current state parameters
         function [h, xo,xdo,xddo,yo,ydo,yddo]=getState(obj)
             h=obj.yaw(end);
             xo=obj.x(end);
@@ -217,7 +208,7 @@ classdef Car < handle
             yddo=obj.ydoubledot(end);
         end
         %% Get Global State
-        %returns state in global frame
+%         returns state in global frame
         function [vn,ve,n,e,d]=getGlobalState(obj)
            [vn, ve]=obj.getGlobalVelocity;
            n=obj.N(end);
@@ -225,15 +216,14 @@ classdef Car < handle
            d=obj.D(end);
         end
         %% setPlanarLandscape
-        %imports a matrix, where rows correspond to East, in meters
-        %columns correspond to North in meters, and the values of the
-        %indecies are Down, in meters.  Num rows and num cols must be odd,
-        %as the center point is the dimension (0,0,0) in NED global
-        %coorinates.  Function normalizes the Down values to the center
-        %being 0.
-        
-        %if the size of the matrix is one, the value is assumed to be a
-        %localized gradient in radians
+%         imports a matrix, where rows correspond to East, in meters
+%         columns correspond to North in meters, and the values of the
+%         indecies are Down, in meters.  Num rows and num cols must be odd,
+%         as the center point is the dimension (0,0,0) in NED global
+%         coorinates.  Function normalizes the Down values to the center
+%         being 0.
+%         if the size of the matrix is one, the value is assumed to be a
+%         localized gradient in radians
         function out=setPlanarLandscape(obj, inMat)
             if(mod(size(inMat, 1),2)~=1)
                 out=0;
@@ -252,12 +242,12 @@ classdef Car < handle
             end
         end
         %% Get Local Grandient
-        %uses the global position and velocity to determine current
-        %location on the terrain map, as well as the likely next position,
-        %and exrapolates a local gradient from that.
+%         uses the global position and velocity to determine current
+%         location on the terrain map, as well as the likely next position,
+%         and exrapolates a local gradient from that.
         function out=getLocalGradient(obj)
             if size(obj.terrain,1)==1 && size(obj.terrain,2)==1
-                out=obj.terrain;
+                out=1*obj.terrain; %invert gradient, in accordance with Down coordiante axis
             else
                 [vn,ve,n,e,~]=obj.getGlobalState;
                 n=n+((size(obj.terrain,1)/2)+.5);
