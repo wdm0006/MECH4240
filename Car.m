@@ -114,6 +114,19 @@ classdef Car < handle
             obj.E=0;
             obj.engine_speed=0;
         end
+        %% Turning Adjustments
+        %function for online adjustment of steering parameters.  For now
+        %simplified to simply setting a new del.  Can be expanded to
+        %account for controlled or power steering.
+        function out=steerAdj(obj,value,varargin)
+            if strcmp(varargin{1,1},'SteerAngle')
+                obj.del=value;
+            elseif strcmp(varargin{1,1},'YawRate')
+                obj.yawdot=value;
+            end
+            
+            out=1;
+        end
         %% Step Forward Terrain-Braking Simulation
         %Does support rolling resistance, does not support yaw double dot.
         %turning values are still pretty primative, just uses in inputed
@@ -280,15 +293,24 @@ classdef Car < handle
                 obj.x(end)=obj.x(end)+(.5*time_step*(obj.xdot(end)+obj.xdot(end-1)));
             end
             
-            %y values, found from given constant y dot, needs to be derived
-            %properly from ydoubledot
-            obj.ydoubledot(end+1)=0;
-            obj.ydot(end+1)=obj.ydotnaught;
-            obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1)));
-            
-            %integrated from given yaw rate, not really calculated in any
-            %real way.
-            obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot+obj.yawdot));
+            %y values all assumes mu is infinite
+            if obj.del~=0
+                turn_radius=sqrt(((obj.length/tan(obj.del))-(obj.width/2))^2+(obj.width/2)^2);
+                %assumes 50/50 weight distribution for now
+                obj.ydoubledot(end+1)=sign(obj.del)*(.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)*cos(obj.del)+.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius));
+                obj.ydot(end+1)=obj.ydot(end)+(.5*time_step*(obj.ydoubledot(end)+obj.ydoubledot(end-1)));
+                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1)));
+                
+%                 obj.yawdot(end+1)=(2*pi)/(((2*turn_radius*pi)/(sqrt(obj.xdot(end)^2+obj.ydot(end)^2))));
+%                 obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot(end)+obj.yawdot(end-1)));
+            else
+                obj.ydoubledot(end+1)=0;
+                obj.ydot(end+1)=0;
+                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1))); 
+                
+                obj.yawdot(end+1)=0;
+                obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot(end)+obj.yawdot(end-1)));
+            end
             
             %logging global coordinates
             [vn2, ve2]=obj.getGlobalVelocity;
@@ -304,22 +326,30 @@ classdef Car < handle
             out=1;
         end
         %% Calculate Tire Velocities
-        %returns car velocity in car tire frames, assuming low speed
+        %returns car velocity in car tires, assuming low speed
         %turning criteria
         function [rlx,rrx,flx,frx,rly,rry,fly,fry]=calcTireVelocities(obj)
             cvx=obj.xdot(end);
             cvy=obj.ydot(end);
-            r=sqrt((obj.width/2)^2+(obj.length/2)^2);
             
-            rlx=cvx+obj.yawdot*r*sin(atan(obj.length/obj.width));
-            rrx=cvx+obj.yawdot*r*sin(atan(obj.length/obj.width));
-            flx=cvx*cos(obj.del)+cvy*sin(obj.del)+obj.yawdot*r*sin((pi/2)-atan(obj.length/obj.width)-obj.del);
-            frx=cvx*sin(obj.del)+cvy*cos(obj.del)+obj.yawdot*r*sin((pi/2)-atan(obj.length/obj.width)-obj.del);
+            rlx=cvx+obj.yawdot*(obj.width/2);
+            rrx=cvx-obj.yawdot*(obj.width/2);
+            flx=cvx+obj.yawdot*(obj.width/2);
+            frx=cvx-obj.yawdot*(obj.width/2);
             
-            rly=cvy+obj.yawdot*r*cos(atan(obj.length/obj.width));
-            rry=cvy+obj.yawdot*r*cos(atan(obj.length/obj.width));
-            fly=cvx*cos(obj.del)+cvy*sin(obj.del)+obj.yawdot*r*cos((pi/2)-atan(obj.length/obj.width)-obj.del);
-            fry=cvx*sin(obj.del)+cvy*cos(obj.del)+obj.yawdot*r*cos((pi/2)-atan(obj.length/obj.width)-obj.del);
+            rly=cvy-obj.yawdot*(obj.length/2);
+            rry=cvy-obj.yawdot*(obj.length/2);
+            fly=cvy+obj.yawdot*(obj.length/2);
+            fry=cvy+obj.yawdot*(obj.length/2);
+        end
+        %% Calc Beta
+        %calculates beta at the CG from the velocity components
+        function beta=calcBeta(obj)
+           if obj.ydot(end)~=0
+               beta=atan(obj.xdot(end)/obj.ydot(end)); 
+           else
+               beta=0;
+           end
         end
         %% Get Global Velocity
         %returns the velocity of COM in global coordinates.  Assumes
@@ -378,7 +408,8 @@ classdef Car < handle
         %% Get State
         %returns relevant current state parameters
         function [h, xo,xdo,xddo,yo,ydo,yddo,es]=getState(obj)
-            h=obj.yaw(end);
+            [vn,ve,~,~,~]=obj.getGlobalState;
+            h=atan(ve/vn);
             xo=obj.x(end);
             xdo=obj.xdot(end);
             xddo=obj.xdoubledot(end);

@@ -1,100 +1,243 @@
-clear all; clc;
-% Simulating a local gradient accelleration, helix
-road_grade=-(20/360)*2*pi;
-mass=1500; 
-r_eff=.35; 
-xdot_naught=20;
-ydot_naught=1;
-del=(5/360)*2*pi;
-yaw_rate=(50/360)*2*pi;
-wheel_base_width=1.5;
-wheel_base_length=2.5;
-c_rr=0.01;
-cg_height=.5;
-frontal_area=2;
-max_es=6600/9.549;
+clear all; clc; close all;
+%% Initializing model
+% Car = 2003 Infinity G35 sedan
+% max hp = 260 @ 6000 rpm
+% max torque = 260 ftlbs @ 4800 rpm
+% max engine speed 6600 rpm
+% curb weight = 3336 lbs
+% wheelbase= 112.2 in
+% width (max) = 69 in
+% height = 57.7 in
+% tires = P205/65VR16
+% 1/4 mi time =14.68 @97.08 mph
+% top gear rpm=1900
+% weight distro 52/48
+%guessed
+r_eff=.35;
+c_rr=.03;
+jc=.4;
+cg_height=.5*57.7*2.54/100;
+rho=1.1;
 
-%initializing generic car model
+%given from spec sheet
+gear_ratios=[3.54,2.264,1.471,1.000,0.834];
+final_drive=3.357;
+max_es=6600/9.549;
+mass=(3336/2.2);
+wheel_base_width=69*2.54/100;
+wheel_base_length=112.2*2.54/100;
+frontal_area=.75*wheel_base_width*2*cg_height;
+cd=.26*.5*rho;
+
+
+%simulation constants/ICs
+road_grade=0;
+xdot_naught=0;
+ydot_naught=0;
+del=0;
+yaw_rate=0;
+
+%initializing generic car model, using Car.m object.  Object is created
+%with the constants relevant to the car itself.  In seperate functions, the
+%simulation parameters and IC's are set, and then the landscape is set to
+%be a perfectly flat plane.  The drags and transmission values are also set 
+%here.  They are modified througout the assignment. setEta sets the overall 
+%engine efficiency term.  This model is used for the remainder of the homework.  
 model=Car(mass, wheel_base_width,wheel_base_length,r_eff,cg_height,del);
-%setting up a simulation
 model=model.SetupSim(xdot_naught, ydot_naught, yaw_rate);
 model.setPlanarLandscape(road_grade);
+model.setDrags(cd,c_rr,frontal_area);
+model.setTransValues(gear_ratios(1), final_drive, max_es,'EffectiveDamping', .001, 'FrictionLoss', .01);
+model.setEta(1);
 
+shiftpoints=[6000,6000,6000,6000,inf];
 n=0;
 e=0;
 d=0;
-
-F_brake=-100;
-
+gear=1;
+F_brake=0;
 model.setDrags(.3,c_rr,frontal_area);
-model.setTransValues(1,1,max_es,'EffectiveDamping', 0, 'FrictionLoss', 0);
-for j=1:1000;
-    model.stepSim(.01, 100,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'PureForce');
+for j=1:10000;
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            steerin(j)=sin((2*pi/1000)*j)*1*pi/180;
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    end
+    model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    steerin(j)=sin((2*pi/1000)*j)*2*pi/180;
+    model.steerAdj(steerin(j), 'SteerAngle');
     [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
 end
 
-figure; 
+figure;
 plot3(n, e, d);
 xlabel('NORTH');
 ylabel('EAST');
 zlabel('DOWN');
+
+figure;
+subplot(3,1,1);
+plot(0:.01:length(model.xdot)*.01-.01, model.xdot.*2.23693629);
+title('Speed over time');
+ylabel('MPH');
+xlabel('Time (seconds)');
+subplot(3,1,2);
+plot(0:.01:length(model.xdot)*.01-.01, model.engine_speed.*9.549);
+title('Engine Speed over time');
+ylabel('RPM');
+xlabel('Time (seconds)');
+subplot(3,1,3);
+plot(0:.01:length(model.xdot)*.01-.01, model.xdoubledot./9.81);
+title('Acceleration over time');
+ylabel('G''s');
+xlabel('Time (seconds)');
+
 %% Simulating driving/turning on random surface
-tsize=250;
-terrain=genSampleTerrain(tsize+1, tsize+1);
-road_grade=0;
-mass=1500; 
-r_eff=.35; 
-terminal_velocity=140*.44704;
-xdot_naught=20;
-ydot_naught=.1;
-del=(5/360)*2*pi;
-yaw_rate=(50/360)*2*pi;
-wheel_base_width=1.5;
-wheel_base_length=2.5;
-c_rr=0.01;
-cg_height=.5;
-frontal_area=2;
+clear all; clc;
 
-%initializing generic car model
+r_eff=.35;
+c_rr=.03;
+jc=.4;
+cg_height=.5*57.7*2.54/100;
+rho=1.1;
+
+%given from spec sheet
+gear_ratios=[3.54,2.264,1.471,1.000,0.834];
+final_drive=3.357;
+max_es=6600/9.549;
+mass=(3336/2.2);
+wheel_base_width=69*2.54/100;
+wheel_base_length=112.2*2.54/100;
+frontal_area=.75*wheel_base_width*2*cg_height;
+cd=.26*.5*rho;
+
+
+%simulation constants/ICs
+xdot_naught=0;
+ydot_naught=0;
+del=0;
+yaw_rate=0;
+
+%initializing generic car model, using Car.m object.  Object is created
+%with the constants relevant to the car itself.  In seperate functions, the
+%simulation parameters and IC's are set, and then the landscape is set to
+%be a perfectly flat plane.  The drags and transmission values are also set 
+%here.  They are modified througout the assignment. setEta sets the overall 
+%engine efficiency term.  This model is used for the remainder of the homework.  
 model=Car(mass, wheel_base_width,wheel_base_length,r_eff,cg_height,del);
-%setting up a simulation
 model=model.SetupSim(xdot_naught, ydot_naught, yaw_rate);
+model.setDrags(cd,c_rr,frontal_area);
+model.setTransValues(gear_ratios(1), final_drive, max_es,'EffectiveDamping', .001, 'FrictionLoss', .01);
+model.setEta(1);
 
-x=0;
-xdot=xdot_naught;
-yaw=0;
-y=0;
-ydot=ydot_naught;
+%setting up the road
+%10km road, 20m wide, starting at the center, 25m sinusoidal hill
+terrain=ones(20001,201);
+for j=1:17500
+   terrain(j,:)=sin(((2*pi)/10000)*j)*25; 
+end
+terrain(17501:end,:)=-25;
+
+model.setPlanarLandscape(terrain);
+
+shiftpoints=[6000,6000,6000,6000,inf];
 n=0;
 e=0;
 d=0;
-
-F_brake=-100;
-
+gear=1;
+F_brake=0;
+vn=0; ve=0;
 model.setDrags(.3,c_rr,frontal_area);
-model.setPlanarLandscape(terrain);
-for j=1:1000;
-    model.stepSim(.1, 0, F_brake,'BrakeInputType', 'PureForce');
-    [yaw(end+1), x(end+1),xdot(end+1),~,y(end+1),ydot(end+1),~]=model.getState;
-    [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+for j=1:15000
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    end
+    model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
 end
-n=n+tsize/2;
-e=e+tsize/2;
-
-figure; 
-surfl(terrain);
-hold on;
-plot3(n(2:end), e(2:end), d(2:end),'r');
-xlabel('NORTH');
-ylabel('EAST');
-zlabel('DOWN');
-xlim([0,tsize+1]);
-ylim([0,tsize+1]);
+for j=1:5000
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 2000);
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    end
+    model.stepSim(.01, 0,2000);
+    [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+end
+% h=[];
+% while vn(end)>0 || ve(end)>.25
+%     if model.engine_speed(end)*9.549>shiftpoints(gear)
+%         gear=gear+1;
+%         if gear<6
+%             model.setTransValues(gear_ratios(gear), final_drive, max_es);
+%             model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+%             model.steerAdj(.1*(pi/180), 'SteerAngle');
+%             [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+%             [h(end+1), xo,xdo,xddo,yo,ydo,yddo,es]=model.getState;
+%         else
+%             gear=5;
+%         end
+%     end
+%     model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+%     [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+%     model.steerAdj(.1*(pi/180), 'SteerAngle');
+%     [h(end+1), xo,xdo,xddo,yo,ydo,yddo,es]=model.getState;
+% end
+% 
+% for j=1:1000
+%     if model.engine_speed(end)*9.549>shiftpoints(gear)
+%         gear=gear+1;
+%         if gear<6
+%             model.setTransValues(gear_ratios(gear), final_drive, max_es);
+%             model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+%             [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+%         else
+%             gear=5;
+%         end
+%     end
+%     model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+%     [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+% end
 
 figure;
-plot3(e(2:end), n(2:end), terrain(tsize/2, tsize/2)-d(2:end),'r');
-xlabel('NORTH');
-ylabel('EAST');
+plot3(e+100, n, d,'r*');
+hold on;
+surf(terrain(10000:end,:));
+xlabel('EAST');
+ylabel('NORTH');
 zlabel('DOWN');
-xlim([0,tsize+1]);
-ylim([0,tsize+1]);
+
+figure;
+subplot(3,1,1);
+plot(0:.01:length(model.xdot)*.01-.01, model.xdot.*2.23693629);
+title('Speed over time');
+ylabel('MPH');
+xlabel('Time (seconds)');
+subplot(3,1,2);
+plot(0:.01:length(model.xdot)*.01-.01, model.engine_speed.*9.549);
+title('Engine Speed over time');
+ylabel('RPM');
+xlabel('Time (seconds)');
+subplot(3,1,3);
+plot(0:.01:length(model.xdot)*.01-.01, model.xdoubledot./9.81);
+title('Acceleration over time');
+ylabel('G''s');
+xlabel('Time (seconds)');
