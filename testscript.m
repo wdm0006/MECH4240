@@ -12,7 +12,7 @@ wheel_base_length=2.5;
 c_rr=0.01;
 cg_height=.5;
 frontal_area=2;
-
+max_es=6600/9.549;
 
 %initializing generic car model
 model=Car(mass, wheel_base_width,wheel_base_length,r_eff,cg_height,del);
@@ -27,9 +27,9 @@ d=0;
 F_brake=-100;
 
 model.setDrags(.3,c_rr,frontal_area);
-model.setTransValues(2,1.1,1,'EffectiveDamping', .1, 'FrictionLoss', 12);
+model.setTransValues(1,1,max_es,'EffectiveDamping', 0, 'FrictionLoss', 0);
 for j=1:1000;
-    model.stepSim(.01, 100,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    model.stepSim(.01, 100,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'PureForce');
     [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
 end
 
@@ -92,7 +92,7 @@ xlim([0,tsize+1]);
 ylim([0,tsize+1]);
 
 figure;
-plot3(n(2:end), e(2:end), d(2:end),'r');
+plot3(e(2:end), n(2:end), terrain(tsize/2, tsize/2)-d(2:end),'r');
 xlabel('NORTH');
 ylabel('EAST');
 zlabel('DOWN');

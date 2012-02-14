@@ -4,7 +4,9 @@
 % the monitoring and analysis of the system's response.
 
 %Version 4
-
+%-added a large number of utility functions
+%-added better functionality with the torque input for simulation
+%-wheel velocity components are still wrong
 
 classdef Car < handle
     
@@ -57,6 +59,7 @@ classdef Car < handle
         torque
         terrain
         engine_speed
+        propforce
     end
     %% Methods
     methods
@@ -90,6 +93,7 @@ classdef Car < handle
             obj.D=0;
             obj.E=0;
             obj.torque=0;
+            obj.propforce=0;
         end
         %% Setup
         %sets the initial conditions of the simulation
@@ -148,7 +152,7 @@ classdef Car < handle
                     if strcmp(varargin{1,2},'PureForce')
                         obj.xdoubledot(end+1)=-obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2))/obj.mass)-(F_brake/obj.mass)-(obj.g*obj.C_rr)+(F_prop/obj.mass);
                     elseif strcmp(varargin{1,2}, 'EngineTorque')
-                        if obj.N1==1 && obj.N2==1
+                        if obj.N1==1 & obj.N2==1
                             warning('Looks like you never set your gear ratios, buddy');
                         end
                         B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
@@ -261,7 +265,7 @@ classdef Car < handle
                 obj.xdoubledot(end+1)=-obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2))/obj.mass)-(F_brake/obj.mass)-(obj.g*obj.C_rr)+(F_prop/obj.mass);
             end
             
-            
+            obj.propforce(end+1)=F_prop*((obj.N1*obj.N1)/obj.r_eff);
             %integrating to get the other x values
             obj.xdot(end+1)=obj.xdot(end)+(.5*time_step*(obj.xdoubledot(end)+obj.xdoubledot(end-1)));
             obj.x(end+1)=obj.x(end)+(.5*time_step*(obj.xdot(end)+obj.xdot(end-1)));
@@ -368,6 +372,7 @@ classdef Car < handle
             obj.D=0;
             obj.engine_speed=0;
             obj.torque=0;
+            obj.propforce=0;
             out=1;
         end
         %% Get State
@@ -381,6 +386,15 @@ classdef Car < handle
             ydo=obj.ydot(end);
             yddo=obj.ydoubledot(end);
             es=obj.engine_speed(end-1);
+        end
+        %% Set engine inertia
+        function out=setEngineI(obj, ei)
+           obj.engine_i=ei;
+           out=1;
+        end
+        %% Set engine inertia
+        function out=getEngineI(obj)
+           out=obj.engine_i;
         end
         %% Get Global State
         %returns state in global frame
@@ -485,6 +499,11 @@ classdef Car < handle
         function out = setEta(obj, eta)
             obj.effec=eta;
             out=1;
+        end
+        %% get engine efficiency
+        %otherwise assumed to be one
+        function out = getEta(obj, eta)
+            out=obj.effec;
         end
     end
     
