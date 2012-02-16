@@ -297,12 +297,9 @@ classdef Car < handle
             if obj.del~=0
                 turn_radius=sqrt(((obj.length/tan(obj.del))-(obj.width/2))^2+(obj.width/2)^2);
                 %assumes 50/50 weight distribution for now
-                obj.ydoubledot(end+1)=sign(obj.del)*(.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)*cos(obj.del)+.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius));
-                obj.ydot(end+1)=obj.ydot(end)+(.5*time_step*(obj.ydoubledot(end)+obj.ydoubledot(end-1)));
-                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1)));
-                
-%                 obj.yawdot(end+1)=(2*pi)/(((2*turn_radius*pi)/(sqrt(obj.xdot(end)^2+obj.ydot(end)^2))));
-%                 obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot(end)+obj.yawdot(end-1)));
+                obj.ydoubledot(end+1)=(sign(obj.del)*(.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)*cos(obj.del)+.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)))/obj.mass;
+                obj.yawdot(end+1)=sqrt(obj.ydoubledot(end)*turn_radius);
+                obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot(end)+obj.yawdot(end-1)));
             else
                 obj.ydoubledot(end+1)=0;
                 obj.ydot(end+1)=0;
@@ -356,8 +353,8 @@ classdef Car < handle
         %car starts at [0,0,0] does not yet support down dimension.  Does
         %not yet support Down dimension
         function [vn, ve]=getGlobalVelocity(obj)
-            vn=obj.xdot(end)*cos(obj.yaw(end))+obj.ydot(end)*cos(pi/4-obj.yaw(end));
-            ve=obj.xdot(end)*sin(obj.yaw(end))+obj.ydot(end)*sin(pi/4-obj.yaw(end));
+            vn=obj.xdot(end)*cos(obj.yaw(end))+obj.ydot(end)*sin(obj.yaw(end));
+            ve=obj.xdot(end)*sin(obj.yaw(end))+obj.ydot(end)*cos(obj.yaw(end));
         end
         %% Simulate Coasting Models
         %simulates and returns the output from a coasting model for a

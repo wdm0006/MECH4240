@@ -51,18 +51,18 @@ model.setTransValues(gear_ratios(1), final_drive, max_es,'EffectiveDamping', .00
 model.setEta(1);
 
 shiftpoints=[6000,6000,6000,6000,inf];
+downshiftpoints=[-inf, 3000,3000,3000,3000];
 n=0;
 e=0;
 d=0;
 gear=1;
 F_brake=0;
 model.setDrags(.3,c_rr,frontal_area);
-for j=1:10000;
+for j=1:1000;
     if model.engine_speed(end)*9.549>shiftpoints(gear)
         gear=gear+1;
         if gear<6
             model.setTransValues(gear_ratios(gear), final_drive, max_es);
-            steerin(j)=sin((2*pi/1000)*j)*1*pi/180;
             model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
             [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
         else
@@ -70,7 +70,22 @@ for j=1:10000;
         end
     end
     model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
-    steerin(j)=sin((2*pi/1000)*j)*2*pi/180;
+    [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+end
+for j=1:10000;
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            steerin(j)=pi/180; %sin((2*pi/1000)*j)*1*pi/180;
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    end
+    model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    steerin(j)=pi/180; %sin((2*pi/1000)*j)*2*pi/180;
     model.steerAdj(steerin(j), 'SteerAngle');
     [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
 end
@@ -147,6 +162,7 @@ terrain(17501:end,:)=-25;
 model.setPlanarLandscape(terrain);
 
 shiftpoints=[6000,6000,6000,6000,inf];
+downshiftpoints=[-inf,3000,3000,3000,3000];
 n=0;
 e=0;
 d=0;
@@ -154,7 +170,7 @@ gear=1;
 F_brake=0;
 vn=0; ve=0;
 model.setDrags(.3,c_rr,frontal_area);
-for j=1:15000
+for j=1:15000;
     if model.engine_speed(end)*9.549>shiftpoints(gear)
         gear=gear+1;
         if gear<6
@@ -164,61 +180,121 @@ for j=1:15000
         else
             gear=5;
         end
+    elseif model.engine_speed(end)*9.549<downshiftpoints(gear)
+        gear=gear-1;
+        if gear>0
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=1;
+        end
     end
     model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
     [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
 end
-for j=1:5000
+for j=1:5000;
     if model.engine_speed(end)*9.549>shiftpoints(gear)
         gear=gear+1;
         if gear<6
             model.setTransValues(gear_ratios(gear), final_drive, max_es);
-            model.stepSim(.01, 0, 2000);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
             [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
         else
             gear=5;
         end
+    elseif model.engine_speed(end)*9.549<downshiftpoints(gear)
+        gear=gear-1;
+        if gear>0
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=1;
+        end
     end
-    model.stepSim(.01, 0,2000);
+    model.stepSim(.01, 0,200,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
     [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
 end
-% h=[];
-% while vn(end)>0 || ve(end)>.25
-%     if model.engine_speed(end)*9.549>shiftpoints(gear)
-%         gear=gear+1;
-%         if gear<6
-%             model.setTransValues(gear_ratios(gear), final_drive, max_es);
-%             model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
-%             model.steerAdj(.1*(pi/180), 'SteerAngle');
-%             [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
-%             [h(end+1), xo,xdo,xddo,yo,ydo,yddo,es]=model.getState;
-%         else
-%             gear=5;
-%         end
-%     end
-%     model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
-%     [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
-%     model.steerAdj(.1*(pi/180), 'SteerAngle');
-%     [h(end+1), xo,xdo,xddo,yo,ydo,yddo,es]=model.getState;
-% end
-% 
-% for j=1:1000
-%     if model.engine_speed(end)*9.549>shiftpoints(gear)
-%         gear=gear+1;
-%         if gear<6
-%             model.setTransValues(gear_ratios(gear), final_drive, max_es);
-%             model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
-%             [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
-%         else
-%             gear=5;
-%         end
-%     end
-%     model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
-%     [~,~,n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
-% end
+
+while vn(end)>0
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    elseif model.engine_speed(end)*9.549<downshiftpoints(gear)
+        gear=gear-1;
+        if gear>0
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=1;
+        end
+    end
+    model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    steerin(j)=pi/180; 
+    model.steerAdj(steerin(j), 'SteerAngle');
+    [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+end
+while abs(ve(end))>.1
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    elseif model.engine_speed(end)*9.549<downshiftpoints(gear)
+        gear=gear-1;
+        if gear>0
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=1;
+        end
+    end
+    model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    steerin(j)=pi/180; 
+    model.steerAdj(steerin(j), 'SteerAngle');
+    [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+end
+
+model.steerAdj(0, 'SteerAngle');
+for j=1:15000;
+    if model.engine_speed(end)*9.549>shiftpoints(gear)
+        gear=gear+1;
+        if gear<6
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=5;
+        end
+    elseif model.engine_speed(end)*9.549<downshiftpoints(gear)
+        gear=gear-1;
+        if gear>0
+            model.setTransValues(gear_ratios(gear), final_drive, max_es);
+            model.stepSim(.01, 0, 0,'PropulsionInputType', 'EngineTorque');
+            [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+        else
+            gear=1;
+        end
+    end
+    model.stepSim(.01, 200,F_brake,'BrakeInputType','PureForce','PropulsionInputType', 'EngineTorque');
+    [vn(end+1),ve(end+1),n(end+1),e(end+1),d(end+1)]=model.getGlobalState;
+end
 
 figure;
-plot3(e+100, n, d,'r*');
+plot3(e+100, n, d, 'r*');
 hold on;
 surf(terrain(10000:end,:));
 xlabel('EAST');
