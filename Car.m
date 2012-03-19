@@ -38,9 +38,11 @@ classdef Car < handle
         transLoss=0;
         transB=0;
         engine_i
-        effec=1; 
+        effec=1;
         max_es=10000;
         %Parameters for the simulation of the system
+        idle=0;
+        
         x
         xdot
         xdotnaught
@@ -51,6 +53,7 @@ classdef Car < handle
         ydotnaught
         yaw
         yawdot
+        yawdoubledot
         yawdotnaught
         del
         N
@@ -60,6 +63,13 @@ classdef Car < handle
         terrain
         engine_speed
         propforce
+        longslip
+        cx=inf;
+        alphaf=0;
+        alphar=0;
+        
+        %other objects
+        tire_model
     end
     %% Methods
     methods
@@ -76,7 +86,7 @@ classdef Car < handle
             obj.fa=0;
             obj.Cd=0;
             obj.engine_i=.5;
-            
+            obj.tire_model=Tires;
             %simulation parameters set to 0 just in case
             obj.x=0;
             obj.xdot=0;
@@ -88,12 +98,14 @@ classdef Car < handle
             obj.ydotnaught=0;
             obj.yaw=0;
             obj.yawdot=0;
+            obj.yawdoubledot=0;
             obj.yawdotnaught=0;
             obj.N=0;
             obj.D=0;
             obj.E=0;
             obj.torque=0;
             obj.propforce=0;
+            obj.longslip=0;
         end
         %% Setup
         %sets the initial conditions of the simulation
@@ -108,11 +120,13 @@ classdef Car < handle
             obj.ydotnaught=ydot0;
             obj.yaw=0;
             obj.yawdot=yawrate;
+            obj.yawdoubledot=0;
             obj.yawdotnaught=yawrate;
             obj.N=0;
             obj.D=0;
             obj.E=0;
             obj.engine_speed=0;
+            obj.longslip=0;
         end
         %% Turning Adjustments
         %function for online adjustment of steering parameters.  For now
@@ -139,7 +153,6 @@ classdef Car < handle
             obj.torque(end+1)=F_prop;
             [vn1, ve1]=obj.getGlobalVelocity;
             gradient=obj.getLocalGradient;
-            
             %INPUT TYPE PARSING********************************************
             if mod(size(varargin,2),2)==1 && size(varargin,2)>0
                 disp(varargin);
@@ -171,7 +184,8 @@ classdef Car < handle
                         B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
                         Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
                         M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                     else
                         
                     end
@@ -189,9 +203,10 @@ classdef Car < handle
                                 warning(1,'Looks like you never set your gear ratios, buddy');
                             end
                             B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
-                            Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
-                            M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                            obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
+                        M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                         else
                             obj.xdoubledot(end+1)=-obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2))/obj.mass)-(F_brake/obj.mass)-(obj.g*obj.C_rr)+(F_prop/obj.mass);
                         end
@@ -205,9 +220,10 @@ classdef Car < handle
                             end
                             F_brake=F_brake; %braking force should equal the pure force resultant from a pedal pressure
                             B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
-                            Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
-                            M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                            obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
+                        M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                         else
                             obj.xdoubledot(end+1)=-obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2))/obj.mass)-(F_brake/obj.mass)-(obj.g*obj.C_rr)+(F_prop/obj.mass);
                         end
@@ -219,9 +235,10 @@ classdef Car < handle
                                 warning(1,'Looks like you never set your gear ratios, buddy');
                             end
                             B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
-                            Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
-                            M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                            obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
+                        M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                         else
                             obj.xdoubledot(end+1)=-obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2))/obj.mass)-(F_brake/obj.mass)-(obj.g*obj.C_rr)+(F_prop/obj.mass);
                         end
@@ -244,23 +261,26 @@ classdef Car < handle
                                 warning(1,'Looks like you never set your gear ratios, buddy');
                             end
                             B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
-                            Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
-                            M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                            obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
+                        M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                         elseif strcmp(varargin{1,4}, 'PedalPressure')
                             if obj.N1==1 && obj.N2==1
                                 warning(1,'Looks like you never set your gear ratios, buddy');
                             end
                             F_brake=F_brake;
                             B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
-                            Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
-                            M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                            obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
+                        M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                         else
                             B_eff=((obj.N1^2*obj.N2^2*obj.transB)/(obj.r_eff^2))+((obj.transB*obj.N2^2)/(obj.r_eff^2))+obj.transB/(obj.r_eff);
-                            Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
-                            M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
-                            obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
+                        Floss=((obj.N1*obj.N2*obj.transLoss)/(obj.r_eff^2))+((obj.N2*obj.transLoss)/obj.r_eff^2)+(obj.transLoss/obj.r_eff);
+                        M_eff=((obj.engine_i*obj.N2^2)/obj.r_eff)+((obj.N1^2*obj.N2^2*obj.engine_i)/(obj.r_eff^2))+(obj.mass)+((obj.engine_i)/(obj.r_eff^2));
+                        obj.longslip(end+1)=(obj.xdoubledot(end)*obj.mass)/obj.cx;
+                        obj.xdoubledot(end+1)=(-obj.mass*obj.g*sin(gradient)-((obj.Cd*obj.fa*(obj.xdot(end)^2)))-(F_brake)-(obj.g*obj.mass*obj.C_rr)+(1-(obj.longslip(end)/100))*(obj.effec*F_prop*(obj.N1*obj.N2)/(obj.r_eff))-(B_eff*obj.xdot(end))-(Floss))/(M_eff);
                         end
                     else
                         if strcmp(varargin{1,4},'PureForce')
@@ -282,9 +302,9 @@ classdef Car < handle
             %integrating to get the other x values
             obj.xdot(end+1)=obj.xdot(end)+(.5*time_step*(obj.xdoubledot(end)+obj.xdoubledot(end-1)));
             obj.x(end+1)=obj.x(end)+(.5*time_step*(obj.xdot(end)+obj.xdot(end-1)));
-            
+
             %finding engine speed
-            obj.engine_speed(end+1)=obj.N1*obj.N2*(obj.xdot(end)/obj.r_eff);
+            obj.engine_speed(end+1)=(1+(obj.longslip(end)/100))*(obj.N1*obj.N2*(obj.xdot(end)/obj.r_eff))+obj.idle;
             %engine is physically limited to a certain engine speed
             if obj.engine_speed(end)>obj.max_es
                 obj.engine_speed(end)=obj.max_es;
@@ -295,18 +315,23 @@ classdef Car < handle
             
             %y values all assumes mu is infinite
             if obj.del~=0
-                turn_radius=sqrt(((obj.length/tan(obj.del))-(obj.width/2))^2+(obj.width/2)^2);
+                %turn_radius=sqrt(((obj.length/tan(obj.del))-(obj.width/2))^2+(obj.width/2)^2);
                 %assumes 50/50 weight distribution for now
-                obj.ydoubledot(end+1)=(sign(obj.del)*(.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)*cos(obj.del)+.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)))/obj.mass;
-                obj.ydot(end+1)=obj.ydot(end)+(.5*time_step*(obj.ydoubledot(end)+obj.ydoubledot(end-1))); 
-                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1))); 
-                obj.yawdot(end+1)=sqrt(obj.ydoubledot(end)*turn_radius);
+                %obj.ydoubledot(end+1)=(sign(obj.del)*(.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)*cos(obj.del)+.5*(sqrt(obj.xdot(end)^2+obj.ydot(end)^2)^2/turn_radius)))/obj.mass;
+                obj.ydoubledot(end+1)=obj.tire_model.calc_ay(obj.del,obj.ydoubledot(end), obj.xdot(end), obj.ydot(end),obj.yawdot(end),obj.mass);
+                obj.ydot(end+1)=obj.ydot(end)+(.5*time_step*(obj.ydoubledot(end)+obj.ydoubledot(end-1)));
+                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1)));
+                
+                %[calphaf, calphar]=obj.tire_model.getCorneringStiffness(obj.ydoubledot(end));
+                
+                [obj.yawdoubledot(end+1),obj.alphaf(end+1),obj.alphar(end+1)]=obj.tire_model.calcYawRateDot(obj.del, obj.xdot(end), obj.ydot(end), obj.yawdot(end),obj.mass, obj.ydoubledot(end));
+                obj.yawdot(end+1)=obj.yawdot(end)+(.5*time_step*(obj.yawdoubledot(end)+obj.yawdoubledot(end-1)));
                 obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot(end)+obj.yawdot(end-1)));
             else
                 obj.ydoubledot(end+1)=0;
                 obj.ydot(end+1)=0;
-                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1))); 
-                
+                obj.y(end+1)=obj.y(end)+(.5*time_step*(obj.ydot(end)+obj.ydot(end-1)));
+                obj.yawdoubledot(end+1)=0;
                 obj.yawdot(end+1)=0;
                 obj.yaw(end+1)=obj.yaw(end)+(.5*time_step*(obj.yawdot(end)+obj.yawdot(end-1)));
             end
@@ -344,19 +369,19 @@ classdef Car < handle
         %% Calc Beta
         %calculates beta at the CG from the velocity components
         function beta=calcBeta(obj)
-           if obj.ydot(end)~=0
-               beta=atan(obj.xdot(end)/obj.ydot(end)); 
-           else
-               beta=0;
-           end
+            if obj.ydot(end)~=0
+                beta=atan(obj.xdot(end)/obj.ydot(end));
+            else
+                beta=0;
+            end
         end
         %% Get Global Velocity
         %returns the velocity of COM in global coordinates.  Assumes
         %car starts at [0,0,0] does not yet support down dimension.  Does
         %not yet support Down dimension
         function [vn, ve]=getGlobalVelocity(obj)
-            vn=obj.xdot(end)*cos(obj.yaw(end))+obj.ydot(end)*sin(obj.yaw(end));
-            ve=obj.xdot(end)*sin(obj.yaw(end))+obj.ydot(end)*cos(obj.yaw(end));
+            vn=obj.xdot(end)*cosd(obj.yaw(end))+obj.ydot(end)*sind(obj.yaw(end));
+            ve=obj.xdot(end)*sind(obj.yaw(end))+obj.ydot(end)*cosd(obj.yaw(end));
         end
         %% Simulate Coasting Models
         %simulates and returns the output from a coasting model for a
@@ -396,12 +421,14 @@ classdef Car < handle
             obj.ydoubledot=0;
             obj.yaw=0;
             obj.yawdot=obj.yawdotnaught;
+            obj.yawdoubledot=0;
             obj.N=0;
             obj.E=0;
             obj.D=0;
-            obj.engine_speed=0;
+            obj.engine_speed=73.3;
             obj.torque=0;
             obj.propforce=0;
+            obj.longslip=0;
             out=1;
         end
         %% Get State
@@ -419,12 +446,12 @@ classdef Car < handle
         end
         %% Set engine inertia
         function out=setEngineI(obj, ei)
-           obj.engine_i=ei;
-           out=1;
+            obj.engine_i=ei;
+            out=1;
         end
         %% Set engine inertia
         function out=getEngineI(obj)
-           out=obj.engine_i;
+            out=obj.engine_i;
         end
         %% Get Global State
         %returns state in global frame
@@ -532,8 +559,17 @@ classdef Car < handle
         end
         %% get engine efficiency
         %otherwise assumed to be one
-        function out = getEta(obj, eta)
+        function out = getEta(obj)
             out=obj.effec;
+        end
+        %%set cx
+        function out= setCX(obj,newcx)
+            obj.cx=newcx;
+            out=1;
+        end
+        function out=setIdleSpeed(obj, is)
+            obj.idle=is;
+            out=1;
         end
     end
     
