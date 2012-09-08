@@ -1,0 +1,3 @@
+This is an object oriented framework for simulating complex transient dynamics in a specified car.
+
+There is something wrong with the dynamics when turning right now, but longitudinally everything is working as expected.
